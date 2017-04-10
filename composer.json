@@ -1,5 +1,25 @@
 {
+    "name": "zobe/amphp-mysqli-query",
+  "description": "`zobe/amphp-mysqli-query` is a non-blocking mysqli query processor for use with the `amp` concurrency framework.",
+  "keywords": [
+    "mysqli",
+    "amp",
+    "query"
+  ],
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "zobe",
+            "email": "zobe-github@zobe.jp"
+        }
+    ],
     "require": {
         "amphp/amp": "^1.2"
+    },
+    "autoload": {
+        "psr-4": {
+            "zobe\\AmphpMysqliQuery\\": "src/"
+        }
     }
 }
