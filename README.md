@@ -1,12 +1,14 @@
 # amphp-mysqli-query
 
-`zobe/amphp-mysqli-query` is a non-blocking mysqli query processor for use with the [`amp`](https://github.com/amphp/amp) concurrency framework.
+`zobe/amphp-mysqli-query` is a non-blocking mysqli query processor built on the [amp concurrency framework](https://github.com/amphp/amp).
 
 
 **Requirements**
 
 - PHP 7
-- [`amphp`](https://github.com/amphp/amp) 1.2
+- [`amphp/amp`](https://github.com/amphp/amp) 1.2
+- mysqli
+- mysqlnd
 
 
 **Project Goal**
@@ -18,5 +20,11 @@
 
 **Installation**
 
-to be prepared
+```bash
+$ composer require zobe/amphp-mysqli-query
+```
+
+**License**
+
+The MIT License (MIT). Please see [LICENSE](./LICENSE) for more information.
 

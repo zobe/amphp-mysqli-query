@@ -6,6 +6,7 @@
  *
  */
 
+require '../vendor/autoload.php';
 require_once '../src/Query.php';
 require_once './config.php';
 

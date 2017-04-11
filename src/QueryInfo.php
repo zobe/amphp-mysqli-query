@@ -2,8 +2,6 @@
 
 namespace zobe\AmphpMysqliQuery;
 
-require '../vendor/autoload.php';
-
 use Amp;
 
 /**

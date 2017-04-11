@@ -2,7 +2,6 @@
 
 namespace zobe\AmphpMysqliQuery;
 
-require '../vendor/autoload.php';
 require __DIR__ . '/QueryInfo.php';
 require __DIR__ . '/Result.php';
 require __DIR__ . '/Exceptions.php';

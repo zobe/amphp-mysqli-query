@@ -13,6 +13,7 @@
  *   You should free \mysqli_result object by mysqli_free_result() to avoid memory leak.
  */
 
+require '../vendor/autoload.php';
 require_once '../src/Query.php';
 require_once './config.php';
 
