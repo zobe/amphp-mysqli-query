@@ -35,7 +35,7 @@ class Result
     /**
      * Do not forget mysqli_free_results()
      *
-     * @return mysqli_result|null
+     * @return \mysqli_result|null
      */
     public function getResult()
     {
@@ -43,7 +43,7 @@ class Result
     }
 
     /**
-     * @param mysqli_result|null $result
+     * @param \mysqli_result|null $result
      */
     public function setResult($result)
     {
