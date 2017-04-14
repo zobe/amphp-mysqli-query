@@ -2,6 +2,11 @@
 
 namespace zobe\AmphpMysqliQuery;
 
+/**
+ * Hold the result of the query
+ *
+ * @package zobe\AmphpMysqliQuery
+ */
 class Result
 {
     protected $sql;
@@ -12,9 +17,14 @@ class Result
     protected $result = null;
 
     /**
-     * @var \Throwable|null
+     * @var mixed the result of \mysqli_reap_async_query itself
      */
-    protected $error = null;
+    protected $resultRaw = null;
+
+//    /**
+//     * @var \Throwable|null
+//     */
+//    protected $error = null;
 
     /**
      * @return string executed SQL statement
@@ -33,8 +43,18 @@ class Result
     }
 
     /**
+     * as the result of mysqli_reap_async_query,
+     * this function returns mysqli_result or null.
+     *
+     * ex1. 'select value from table' => mysqli_result
+     * ex2. 'insert into table values (value1, value2)' => null
+     *
+     * if you need mysqli_reap_async_query's result itself,
+     * see Result::getResultRaw()
+     *
      * Do not forget mysqli_free_results()
      *
+     * @see Result::getResultRaw()
      * @return \mysqli_result|null
      */
     public function getResult()
@@ -50,18 +70,36 @@ class Result
         $this->result = $result;
     }
 
-    public function isError() : bool
+//    public function isError() : bool
+//    {
+//        return is_null($this->error) ? false : true;
+//    }
+
+//    public function getError()
+//    {
+//        return $this->error;
+//    }
+//
+//    public function setError( \Throwable $e )
+//    {
+//        $this->error = $e;
+//    }
+
+    /**
+     * return value of mysqli_reap_async_query AS IS.
+     *
+     * @return mixed
+     */
+    public function getResultRaw()
     {
-        return is_null($this->error) ? false : true;
+        return $this->resultRaw;
     }
 
-    public function getError()
+    /**
+     * @param $resultRaw mixed
+     */
+    public function setResultRaw($resultRaw)
     {
-        return $this->error;
-    }
-
-    public function setError( \Throwable $e )
-    {
-        $this->error = $e;
+        $this->resultRaw = $resultRaw;
     }
 }

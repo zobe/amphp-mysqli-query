@@ -48,7 +48,7 @@ class Query
     /**
      * @var string WatcherID of queryTick()
      */
-    protected $queryLoopWatcherId;
+    protected $loopWatcherId;
 
     /**
      * Constructor.
@@ -66,7 +66,7 @@ class Query
             $this->reactor = Amp\reactor();
 
         $this->queries = [];
-        $this->queryLoopWatcherId = null;
+        $this->loopWatcherId = null;
     }
 
     /**
@@ -94,9 +94,9 @@ class Query
         $query->setConnection( $mysqli );
         $query->setSql( $sql );
 
-        if( is_null($this->queryLoopWatcherId) )
+        if( is_null($this->loopWatcherId) )
         {
-            $this->queryLoopWatcherId = $this->reactor->repeat( [$this,'queryTick'], 10 );
+            $this->loopWatcherId = $this->reactor->repeat( [$this, 'tick'], 10 );
         }
 
         return $query->getDefer()->promise();
@@ -129,26 +129,26 @@ class Query
             }
             catch( CouldntFetchMysqliException $e )
             {
-                $e->setSql( $this->queries[$id]->getSql() );
-                $queryInfo->getDefer()->fail( $e );
                 unset( $this->queries[$id] );
+                $e->setSql( $queryInfo->getSql() );
+                $queryInfo->getDefer()->fail( $e );
             }
             catch( NotCategorizedMysqliPollException $e )
             {
-                $e->setSql( $this->queries[$id]->getSql() );
-                $queryInfo->getDefer()->fail( $e );
                 unset( $this->queries[$id] );
+                $e->setSql( $queryInfo->getSql() );
+                $queryInfo->getDefer()->fail( $e );
             }
             catch( \Throwable $e )
             {
+                unset( $this->queries[$id] );
                 $err = new NotCategorizedMysqliPollException(
                     $e->getMessage(),
                     $e->getCode(),
                     $e
                 );
-                $err->setSql( $this->queries[$id]->getSql() );
+                $err->setSql( $queryInfo->getSql() );
                 $queryInfo->getDefer()->fail( $err );
-                unset( $this->queries[$id] );
             }
             finally
             {
@@ -160,7 +160,7 @@ class Query
     /**
      * Do not call me. Automatically called if one or more queryinfo object(s) exist(s).
      */
-    function queryTick()
+    function tick()
     {
         $a = $links = $errors = $rejects = [];
         $poll_result = false;
@@ -188,32 +188,37 @@ class Query
             return;
         }
 
-        $processedIds = [];
+//        $processedIds = [];
         foreach( $links as $link )
         {
             $id = spl_object_hash($link);
             $query = $this->queries[$id];
-            $processedIds[] = $id;
+//            $processedIds[] = $id;
+            unset( $this->queries[$id] );
 
             if( $result = mysqli_reap_async_query( $link ) )
             {
                 $queryResult = new Result();
                 $queryResult->setSql( $query->getSql() );
-                $queryResult->setResult( $result );
+                $queryResult->setResultRaw( $result );
+                if( $result instanceof \mysqli_result )
+                    $queryResult->setResult( $result );
+                else
+                    $queryResult->setResult( null );
                 $query->getDefer()->succeed( $queryResult );
             }
             else
             {
                 $e = new MysqliException(mysqli_error($link),mysqli_errno($link));
-                $e->setSql( $this->queries[$id]->getSql() );
+                $e->setSql( $query->getSql() );
                 $query->getDefer()->fail($e);
             }
         }
 
-        foreach( $processedIds as $id )
-        {
-            unset( $this->queries[$id] );
-        }
+//        foreach( $processedIds as $id )
+//        {
+//            unset( $this->queries[$id] );
+//        }
 
         // terminate loop if no query exists
         $this->terminateLoopIfNoQueryExists();
@@ -222,8 +227,8 @@ class Query
     protected function terminateLoopIfNoQueryExists()
     {
         if( count($this->queries) <= 0 ) {
-            $this->reactor->cancel( $this->queryLoopWatcherId );
-            $this->queryLoopWatcherId = null;
+            $this->reactor->cancel( $this->loopWatcherId );
+            $this->loopWatcherId = null;
         }
     }
 }

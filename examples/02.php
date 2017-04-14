@@ -115,8 +115,9 @@ Amp\run(
                         {
                             echo 'main: promise->when(): failed'.PHP_EOL;
                             if( $e instanceof \Throwable ) {
-                                echo 'main: promise->when(): reason: ';
-                                echo get_class($e) . ', ';
+                                echo 'main: promise->when(): exceptionClass: ';
+                                echo get_class($e) . PHP_EOL;
+                                echo 'main: promise->when(): description: ';
                                 echo $e->getMessage() . PHP_EOL;
                             }
                         }
