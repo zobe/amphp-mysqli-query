@@ -21,11 +21,6 @@ class Result
      */
     protected $resultRaw = null;
 
-//    /**
-//     * @var \Throwable|null
-//     */
-//    protected $error = null;
-
     /**
      * @return string executed SQL statement
      */
@@ -52,9 +47,10 @@ class Result
      * if you need mysqli_reap_async_query's result itself,
      * see Result::getResultRaw()
      *
-     * Do not forget mysqli_free_results()
+     * Do not forget mysqli_free_results() or $this->freeResult()
      *
      * @see Result::getResultRaw()
+     * @see Result::freeResult()
      * @return \mysqli_result|null
      */
     public function getResult()
@@ -69,21 +65,6 @@ class Result
     {
         $this->result = $result;
     }
-
-//    public function isError() : bool
-//    {
-//        return is_null($this->error) ? false : true;
-//    }
-
-//    public function getError()
-//    {
-//        return $this->error;
-//    }
-//
-//    public function setError( \Throwable $e )
-//    {
-//        $this->error = $e;
-//    }
 
     /**
      * return value of mysqli_reap_async_query AS IS.
@@ -101,5 +82,16 @@ class Result
     public function setResultRaw($resultRaw)
     {
         $this->resultRaw = $resultRaw;
+    }
+
+    /**
+     * call mysqli_free_result for internal mysqli_result if exists
+     */
+    public function freeResult()
+    {
+        if( !is_null($this->result) ) {
+            mysqli_free_result($this->result);
+            $this->result = null;
+        }
     }
 }
