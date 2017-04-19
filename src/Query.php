@@ -74,10 +74,10 @@ class Query
      *
      * @param \mysqli $mysqli Target mysqli object. Pay attention to use 1 query for this at once.
      * @param string $sql
-     * @return mixed Yield yields Amp Promise object. Yielder can get MysqliAsyncQueryResult object.
-     * @throws \InvalidArgumentException mysqli object is already used for a query
+     * @param bool $isExecOnly if true, yield return value will be automatically disposed and be set null.
+     * @return mixed Yield yields Amp Promise object. Yielder can always get Result object.
      */
-    function query(\mysqli $mysqli, string $sql )
+    public function query(\mysqli $mysqli, string $sql, bool $isExecOnly = false )
     {
         $id = spl_object_hash( $mysqli );
         if( array_key_exists( $id, $this->queries ) )
@@ -93,6 +93,7 @@ class Query
 
         $query->setConnection( $mysqli );
         $query->setSql( $sql );
+        $query->setExecOnly( $isExecOnly );
 
         if( is_null($this->loopWatcherId) )
         {
@@ -100,6 +101,21 @@ class Query
         }
 
         return $query->getDefer()->promise();
+    }
+
+    /**
+     * Yield me to execute sql asynchronously. same as query(,,true)
+     *
+     * unlike in the case of query(,,false), you are free from necessity to dispose mysqli_result.
+     * So you can use it for insert, update, delete, create table... and so no.
+     *
+     * @param \mysqli $mysqli
+     * @param string $sql
+     * @return mixed
+     */
+    public function execOnly( \mysqli $mysqli, string $sql )
+    {
+        return $this->query( $mysqli, $sql,true );
     }
 
     public static function errorHandlerOnMysqliPoll( $errno, $errstr, $errfile, $errline )
@@ -198,14 +214,30 @@ class Query
 
             if( $result = mysqli_reap_async_query( $link ) )
             {
-                $queryResult = new Result();
-                $queryResult->setSql( $query->getSql() );
-                $queryResult->setResultRaw( $result );
-                if( $result instanceof \mysqli_result )
-                    $queryResult->setResult( $result );
-                else
-                    $queryResult->setResult( null );
-                $query->getDefer()->succeed( $queryResult );
+                if( $query->isExecOnly() )
+                {
+                    $queryResult = new Result();
+                    if( $result instanceof \mysqli_result )
+                    {
+                        mysqli_free_result( $result );
+                    }
+                    $queryResult->setSql($query->getSql());
+                    $queryResult->setResultRaw($result);
+                    $queryResult->setResult(null);
+                    $query->getDefer()->succeed($queryResult);
+                }
+                else {
+                    $queryResult = new Result();
+                    $queryResult->setSql($query->getSql());
+
+                    $queryResult->setResultRaw($result);
+                    if ($result instanceof \mysqli_result)
+                        $queryResult->setResult($result);
+                    else
+                        $queryResult->setResult(null);
+
+                    $query->getDefer()->succeed($queryResult);
+                }
             }
             else
             {

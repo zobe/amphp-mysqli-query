@@ -15,6 +15,7 @@ class QueryInfo
     protected $defer = null;
     protected $sql;
     protected $connection = null;
+    protected $execOnly = false;
 
     public function getDefer() : Amp\Deferred
     {
@@ -53,6 +54,22 @@ class QueryInfo
     public function setConnection( \mysqli $connection)
     {
         $this->connection = $connection;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isExecOnly(): bool
+    {
+        return $this->execOnly;
+    }
+
+    /**
+     * @param bool $execOnly
+     */
+    public function setExecOnly(bool $execOnly)
+    {
+        $this->execOnly = $execOnly;
     }
 }
 

@@ -49,6 +49,8 @@ class Result
      *
      * Do not forget mysqli_free_results() or $this->freeResult()
      *
+     * if you call Query::query(,,true) or Query::execOnly(), this value is always null.
+     *
      * @see Result::getResultRaw()
      * @see Result::freeResult()
      * @return \mysqli_result|null

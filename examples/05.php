@@ -36,10 +36,10 @@ function AmphpMysqliQueryDump( \zobe\AmphpMysqliQuery\Result $result )
 }
 
 
-function DemoQuery( \zobe\AmphpMysqliQuery\Query $query, \mysqli $link, string $sql )
+function DemoQuery( \zobe\AmphpMysqliQuery\Query $query, \mysqli $link, string $sql, bool $execOnly = false )
 {
     echo 'sql: ' . $sql . PHP_EOL;
-    $ret = yield $query->query( $link, $sql );
+    $ret = yield $query->query( $link, $sql, $execOnly );
 
     echo 'result: ' .PHP_EOL;
     if( $ret instanceof \zobe\AmphpMysqliQuery\Result )
@@ -64,22 +64,22 @@ Amp\run(
         yield from DemoQuery($query,$link, $sql);
 
         $sql = 'create table if not exists tmp_amphpmysqliquery_examples_05 (id varchar(16), val int)';
-        yield from DemoQuery($query,$link, $sql);
+        yield from DemoQuery($query,$link, $sql, true);
 
         $sql = "insert into tmp_amphpmysqliquery_examples_05 values ('ID1', 101), ('ID2', 102)";
-        yield from DemoQuery($query,$link, $sql);
+        yield from DemoQuery($query,$link, $sql, true );
 
         $sql = "select * from tmp_amphpmysqliquery_examples_05 where id = 'ID2'";
         yield from DemoQuery($query,$link, $sql);
 
         $sql = "update tmp_amphpmysqliquery_examples_05 set val = 1020 where id = 'ID2'";
-        yield from DemoQuery($query,$link, $sql);
+        yield from DemoQuery($query,$link, $sql, true );
 
         $sql = "select * from tmp_amphpmysqliquery_examples_05 where id = 'ID2'";
         yield from DemoQuery($query,$link, $sql);
 
         $sql = 'drop table if exists tmp_amphpmysqliquery_examples_05';
-        yield from DemoQuery($query,$link, $sql);
+        yield from DemoQuery($query,$link, $sql, true );
     }
 );
 
