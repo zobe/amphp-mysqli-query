@@ -15,7 +15,12 @@ class QueryInfo
     protected $defer = null;
     protected $sql;
     protected $connection = null;
-    protected $execOnly = false;
+    protected $queryType = null;
+
+    function __construct()
+    {
+        $this->queryType = QueryType::typeNormal();
+    }
 
     public function getDefer() : Amp\Deferred
     {
@@ -57,19 +62,19 @@ class QueryInfo
     }
 
     /**
-     * @return bool
+     * @return QueryType
      */
-    public function isExecOnly(): bool
+    public function getQueryType()
     {
-        return $this->execOnly;
+        return $this->queryType;
     }
 
     /**
-     * @param bool $execOnly
+     * @param QueryType $queryType
      */
-    public function setExecOnly(bool $execOnly)
+    public function setQueryType(QueryType $queryType)
     {
-        $this->execOnly = $execOnly;
+        $this->queryType = $queryType;
     }
 }
 

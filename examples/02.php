@@ -5,6 +5,12 @@
  * aimed at catching accidents correctly
  */
 
+echo '=== catching mysqli connection down simulation ===' . PHP_EOL;
+echo "coroutine1 will be fail with 'CouldntFetchMysqliException'";
+echo PHP_EOL;
+echo PHP_EOL;
+
+
 require '../vendor/autoload.php';
 require_once '../src/Query.php';
 require_once './config.php';

@@ -12,7 +12,7 @@ class Result
     protected $sql;
 
     /**
-     * @var \mysqli_result|null
+     * @var mixed|null
      */
     protected $result = null;
 
@@ -37,13 +37,28 @@ class Result
         $this->sql = $sql;
     }
 
+
+
     /**
-     * as the result of mysqli_reap_async_query,
-     * this function returns mysqli_result or null.
+     * if you use Query::query(),
+     * this value is \mysqli_query or null.
+     * and you should free the \mysqli_query object.
      *
-     * ex1. 'select value from table' => mysqli_result
-     * ex2. 'insert into table values (value1, value2)' => null
+     * if you use Query::execOnly(),
+     * this value is always null.
+     * in either case there is no need to free any object.
      *
+     * if you use Query::getFirstRowOnly(),
+     * this value is an array or null.
+     * in either case there is no need to free any object.
+     *
+     * if you use Query::getFirstValueOnly(),
+     * this value is a mixed value or null.
+     * in either case there is no need to free any object.
+     *
+     * this value is based on mysqli_reap_async_query function,
+     * but when the function returns a value other than \mysqli_result,
+     * this function always acts to return null.
      * if you need mysqli_reap_async_query's result itself,
      * see Result::getResultRaw()
      *
@@ -53,7 +68,7 @@ class Result
      *
      * @see Result::getResultRaw()
      * @see Result::freeResult()
-     * @return \mysqli_result|null
+     * @return mixed|null
      */
     public function getResult()
     {
@@ -61,7 +76,7 @@ class Result
     }
 
     /**
-     * @param \mysqli_result|null $result
+     * @param mixed|null $result
      */
     public function setResult($result)
     {
@@ -91,7 +106,7 @@ class Result
      */
     public function freeResult()
     {
-        if( !is_null($this->result) ) {
+        if( !is_null($this->result) && $this->result instanceof \mysqli_result ) {
             mysqli_free_result($this->result);
             $this->result = null;
         }

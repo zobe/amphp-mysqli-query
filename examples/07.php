@@ -1,16 +1,16 @@
 <?php
 /**
- * getting results sample
+ * getting results sample 2
  *
- * successful query AmphpMysqliQuery::query returns
- * AmphpMysqliQuery\Result object.
+ * $result = yield $query->getFirstValueOnly( $link, $sql );
+ * You can get a value or null by $result->getResult()
  *
- * $result = yield $query->query( $link, $sql );
+ * $result = yield $query->getFirstRowOnly( $link, $sql );
+ * You can get an array of the first row or null by $result->getResult()
  *
- * You can get the results by $result->getResult() as \mysqli_result object.
+ * Unlike in the case of $query->query(,,default=QueryType::typeNormal()),
+ * \mysqli_result object is automatically disposed and there is no need to take care them.
  *
- * ATTENTION:
- *   You should free \mysqli_result object by mysqli_free_result() to avoid memory leak.
  */
 
 require '../vendor/autoload.php';
@@ -31,30 +31,47 @@ $promises[] = Amp\resolve(
         $ret = null;
 
         try {
-            $result = yield $query->query($link, $sql);
+            $result = yield $query->getFirstValueOnly($link, $sql);
+            if( $result instanceof \zobe\AmphpMysqliQuery\Result ) {
+                if (!is_null($result->getResult())) {
+                    $ret = $result->getResult();
+                } else {
+                    $ret = null;
+                }
+            }
         }
         catch( \Throwable $e )
         {
             throw $e;
         }
 
-        if( $result instanceof \zobe\AmphpMysqliQuery\Result ) {
-            $row = mysqli_fetch_row($result->getResult() );
-            while (!is_null($row)) {
-                $count = 0;
-                foreach ($row as $aValue) {
-                    $count++;
-                    if ($count > 1)
-                        echo ', ';
-                    echo $aValue;
-                    $ret = $aValue;
-                }
-                echo PHP_EOL;
+        echo $sql . ' end' . PHP_EOL;
+        if( is_null($ret) )
+            throw new Exception( 'No result?' );
+        return $ret;
+    }
+);
+$promises[] = Amp\resolve(
+    function() use ($query)
+    {
+        $link = mysqli_connect( DB_HOST, DB_USER, DB_PASS, DB_NAME );
+        $sql = 'select 1,2,3,4,5,6,7,8,9,10';
+        echo $sql . ' start' . PHP_EOL;
+        $ret = null;
 
-                $row = mysqli_fetch_row( $result->getResult() );
+        try {
+            $result = yield $query->getFirstRowOnly($link, $sql);
+            if( $result instanceof \zobe\AmphpMysqliQuery\Result ) {
+                if (!is_null($result->getResult())) {
+                    $ret = $result->getResult();
+                } else {
+                    $ret = null;
+                }
             }
-            // you should free mysqli_result object as below, or $result->freeResult()
-            mysqli_free_result( $result->getResult() );
+        }
+        catch( \Throwable $e )
+        {
+            throw $e;
         }
 
         echo $sql . ' end' . PHP_EOL;

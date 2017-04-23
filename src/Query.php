@@ -5,11 +5,17 @@ namespace zobe\AmphpMysqliQuery;
 require __DIR__ . '/QueryInfo.php';
 require __DIR__ . '/Result.php';
 require __DIR__ . '/Exceptions.php';
+require __DIR__ . '/QueryType.php';
 
 use Amp;
 
 class Query
 {
+    const TYPE_NORMAL = 0;
+    const TYPE_EXEC_ONLY = 1;
+    const TYPE_FIRST_ROW_ONLY = 2;
+    const TYPE_FIRST_VALUE_ONLY = 3;
+
     // singleton...?
     protected static $singletons = [];
 
@@ -72,18 +78,23 @@ class Query
     /**
      * Yield me to execute sql asynchronously.
      *
+     * promise success or yield return value is always Result class
+     *
+     * @see QueryType
      * @param \mysqli $mysqli Target mysqli object. Pay attention to use 1 query for this at once.
      * @param string $sql
-     * @param bool $isExecOnly if true, yield return value will be automatically disposed and be set null.
-     * @return mixed Yield yields Amp Promise object. Yielder can always get Result object.
+     * @param QueryType|null $queryType QueryType. Default value(null) will be treated as: QueryType::NORMAL
+     * @return Amp\Promise
      */
-    public function query(\mysqli $mysqli, string $sql, bool $isExecOnly = false )
+    public function query(\mysqli $mysqli, string $sql, QueryType $queryType = null )
     {
         $id = spl_object_hash( $mysqli );
         if( array_key_exists( $id, $this->queries ) )
         {
             throw new \InvalidArgumentException( 'This mysqli object is already used for a query. You can use only one query at a time. If you want to execute 2 sqls at a time, 2 connections required.' );
         }
+        if( is_null($queryType) )
+            $queryType = QueryType::typeNormal();
 
         $mysqli->query( $sql, MYSQLI_ASYNC );
 
@@ -93,7 +104,7 @@ class Query
 
         $query->setConnection( $mysqli );
         $query->setSql( $sql );
-        $query->setExecOnly( $isExecOnly );
+        $query->setQueryType( $queryType );
 
         if( is_null($this->loopWatcherId) )
         {
@@ -104,18 +115,49 @@ class Query
     }
 
     /**
-     * Yield me to execute sql asynchronously. same as query(,,true)
+     * Yield me to execute sql asynchronously. same as query(,,QueryType::typeExecOnly())
+     * The result will be discarded.
      *
      * unlike in the case of query(,,false), you are free from necessity to dispose mysqli_result.
      * So you can use it for insert, update, delete, create table... and so no.
      *
      * @param \mysqli $mysqli
      * @param string $sql
-     * @return mixed
+     * @return Amp\Promise
      */
     public function execOnly( \mysqli $mysqli, string $sql )
     {
-        return $this->query( $mysqli, $sql,true );
+        return $this->query( $mysqli, $sql, QueryType::typeExecOnly() );
+    }
+
+    /**
+     * Yield me to execute sql asynchronously. same as query(,,QueryType::typeFirstRowOnly())
+     * The result will be discarded without the first row.
+     *
+     * unlike in the case of query(,,false), you are free from necessity to dispose mysqli_result.
+     *
+     * @param \mysqli $mysqli
+     * @param string $sql
+     * @return Amp\Promise
+     */
+    public function getFirstRowOnly( \mysqli $mysqli, string $sql )
+    {
+        return $this->query( $mysqli, $sql, QueryType::typeFirstRowOnly() );
+    }
+
+    /**
+     * Yield me to execute sql asynchronously. same as query(,,QueryType::typeFirstValueOnly())
+     * The result will be discarded without the first value of the first row.
+     *
+     * unlike in the case of query(,,false), you are free from necessity to dispose mysqli_result.
+     *
+     * @param \mysqli $mysqli
+     * @param string $sql
+     * @return Amp\Promise
+     */
+    public function getFirstValueOnly( \mysqli $mysqli, string $sql )
+    {
+        return $this->query( $mysqli, $sql, QueryType::typeFirstValueOnly() );
     }
 
     public static function errorHandlerOnMysqliPoll( $errno, $errstr, $errfile, $errline )
@@ -178,7 +220,7 @@ class Query
      */
     function tick()
     {
-        $a = $links = $errors = $rejects = [];
+        $links = $errors = $rejects = [];
         $poll_result = false;
 
         foreach( $this->queries as $q )
@@ -214,19 +256,56 @@ class Query
 
             if( $result = mysqli_reap_async_query( $link ) )
             {
-                if( $query->isExecOnly() )
+                if( $query->getQueryType()->isExecOnly() )
                 {
                     $queryResult = new Result();
                     if( $result instanceof \mysqli_result )
-                    {
                         mysqli_free_result( $result );
-                    }
                     $queryResult->setSql($query->getSql());
                     $queryResult->setResultRaw($result);
                     $queryResult->setResult(null);
                     $query->getDefer()->succeed($queryResult);
                 }
-                else {
+                else if( $query->getQueryType()->isFirstRowOnly() )
+                {
+                    $queryResult = new Result();
+                    $queryResult->setSql($query->getSql());
+                    $queryResult->setResultRaw($result);
+
+                    $queryResult->setResult( null );
+                    if( $result instanceof \mysqli_result ) {
+                        try {
+                            $row = mysqli_fetch_row($result);
+                            if (!is_null($row) && is_array($row) && isset($row[0]))
+                                $queryResult->setResult($row);
+                        }
+                        finally {
+                            mysqli_free_result($result);
+                        }
+                    }
+                    $query->getDefer()->succeed($queryResult);
+                }
+                else if( $query->getQueryType()->isFirstValueOnly() )
+                {
+                    $queryResult = new Result();
+                    $queryResult->setSql($query->getSql());
+                    $queryResult->setResultRaw($result);
+
+                    $queryResult->setResult( null );
+                    if( $result instanceof \mysqli_result ) {
+                        try {
+                            $row = mysqli_fetch_row($result);
+                            if (!is_null($row) && is_array($row) && isset($row[0]))
+                                $queryResult->setResult($row[0]);
+                        }
+                        finally {
+                            mysqli_free_result($result);
+                        }
+                    }
+                    $query->getDefer()->succeed($queryResult);
+                }
+                else // if( $query->$queryType()->isNormal() )
+                {
                     $queryResult = new Result();
                     $queryResult->setSql($query->getSql());
 
