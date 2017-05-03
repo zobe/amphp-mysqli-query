@@ -1,5 +1,7 @@
 <?php
 
+namespace zobe\AmphpMysqliQuery;
+
 /**
  * Retrying settings for connect methods of Connector class
  */

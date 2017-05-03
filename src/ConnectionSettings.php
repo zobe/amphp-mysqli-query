@@ -1,5 +1,7 @@
 <?php
 
+namespace zobe\AmphpMysqliQuery;
+
 /**
  * This represents the arguments of mysqli_connect() and mysqli_real_connect()
  */

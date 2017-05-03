@@ -1,5 +1,6 @@
 <?php
 
+namespace zobe\AmphpMysqliQuery;
 
 class ConnectorUpdateMessage
 {
@@ -32,7 +33,7 @@ class ConnectorUpdateMessage
     /**
      * Do not use
      *
-     * @param mysqli $mysqli
+     * @param \mysqli $mysqli
      * @return ConnectorUpdateMessage
      */
     public function setMysqli( \mysqli $mysqli ): ConnectorUpdateMessage

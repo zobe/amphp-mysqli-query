@@ -1,5 +1,11 @@
 <?php
 
+namespace zobe\AmphpMysqliQuery;
+
+require __DIR__ . './ConnectionSettings.php';
+require __DIR__ . './RetrySettings.php';
+require __DIR__ . './ConnectorUpdateMessage.php';
+
 /**
  * This represents connection factory methods with asynchronous retry mechanism.
  */
@@ -37,9 +43,9 @@ class Connector
         if( is_null($retrySetting) )
             $retrySetting = $this->defaultRetrySetting;
 
-        $defer = new Amp\Deferred();
+        $defer = new \Amp\Deferred();
 
-        $promise = Amp\resolve(
+        $promise = \Amp\resolve(
             function() use ( $defer, $connectionSetting, $retrySetting, $enableUpdateMessage )
             {
                 $finish_establish_connection = false;
@@ -60,7 +66,7 @@ class Connector
                         }
                     }
 
-                    $mysqli = @new mysqli(
+                    $mysqli = @new \mysqli(
                         $connectionSetting->getHost(),
                         $connectionSetting->getUser(),
                         $connectionSetting->getPassword(),
@@ -125,7 +131,7 @@ class Connector
      * @see http://php.net/manual/en/mysqli.real-connect.php
      * @see http://php.net/manual/en/mysqli.init.php
      *
-     * @param mysqli $mysqli requires mysqli object which has to be created by function \mysqli_init
+     * @param \mysqli $mysqli requires mysqli object which has to be created by function \mysqli_init
      * @param int $flags same as flags parameter of function \mysqli_real_connect
      * @param ConnectionSettings|null $connectionSetting if null, the value of $this->setDefaultConnectionSetting() is used.
      * @param RetrySettings|null $retrySetting if null, the value of $this->setDefaultRetrySetting() is used.
@@ -139,9 +145,9 @@ class Connector
         if( is_null($retrySetting) )
             $retrySetting = $this->defaultRetrySetting;
 
-        $defer = new Amp\Deferred();
+        $defer = new \Amp\Deferred();
 
-        $promise = Amp\resolve(
+        $promise = \Amp\resolve(
             function() use ( $defer, $mysqli, $flags, $connectionSetting, $retrySetting, $enableUpdateMessage )
             {
                 $finish_establish_connection = false;
