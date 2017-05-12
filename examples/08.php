@@ -8,6 +8,7 @@ require_once '../src/Connector.php';
 require_once '../src/RetrySettings.php';
 require_once '../src/ConnectionSettings.php';
 require_once '../src/ConnectorUpdateMessage.php';
+require_once '../src/Connector.php';
 require_once './config.php';
 
 
@@ -15,9 +16,9 @@ require_once './config.php';
 Amp\run(
     function()
     {
-        $ctr = new Connector();
+        $ctr = new \zobe\AmphpMysqliQuery\Connector();
         $ctr->setDefaultConnectionSetting(
-            new ConnectionSettings(
+            new \zobe\AmphpMysqliQuery\ConnectionSettings(
                 DB_HOST,
                 DB_USER,
                 DB_PASS,
@@ -48,7 +49,7 @@ Amp\run(
         // open
         $p = $ctr->connectWithAutomaticRetry();
         $p = $p->watch(
-            function( ConnectorUpdateMessage $msg )
+            function( \zobe\AmphpMysqliQuery\ConnectorUpdateMessage $msg )
             {
                 static $count = 0;
                 $maxCount = 10;
