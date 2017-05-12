@@ -27,9 +27,6 @@ class ConnectorUpdateMessage
      */
     protected $cancelRetrying = false;
 
-    // 正常系も入れる？どうする？
-    // callback 側から中止を指示することは可能か？
-
     /**
      * Do not use
      *

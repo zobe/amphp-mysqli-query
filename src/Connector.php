@@ -2,6 +2,8 @@
 
 namespace zobe\AmphpMysqliQuery;
 
+use Amp\Pause;
+
 require __DIR__ . './ConnectionSettings.php';
 require __DIR__ . './RetrySettings.php';
 require __DIR__ . './ConnectorUpdateMessage.php';
@@ -18,6 +20,17 @@ class Connector
     {
         $this->defaultConnectionSetting = new ConnectionSettings();
         $this->defaultRetrySetting = new RetrySettings();
+    }
+
+    public function errorHandlerOnPing( $errno, $errstr, $errfile, $errline )
+    {
+        $e = new MysqliException(
+            'Error at mysqli_ping(): ' . $errstr . ', file: ' . $errfile . ', line: ' . $errline,
+            $errno);
+        $e->setMethodName( 'ping' );
+        $e->setClassName( 'mysqli' );
+        $e->setConnectionError(true);
+        throw $e;
     }
 
     /**
@@ -62,12 +75,13 @@ class Connector
                         $currentTime = microtime( true );
                         if( $currentTime - $startTime > $timeoutSec )
                         {
+//                            echo '[A]';
                             return $mysqli;
                         }
                     }
 
                     $mysqli = @new \mysqli(
-                        $connectionSetting->getHost(),
+                        'p:' . $connectionSetting->getHost(),
                         $connectionSetting->getUser(),
                         $connectionSetting->getPassword(),
                         $connectionSetting->getDatabase(),
@@ -75,9 +89,27 @@ class Connector
                         $connectionSetting->getSocket()
                     );
 
+                    try {
+                        set_error_handler( [$this,'errorHandlerOnPing'] );
+                        $mysqli->ping();
+                    }
+                    catch( MysqliException $e )
+                    {
+//                        echo '[e21(' . $e->getCode() . ')]';
+                        yield new \Amp\Pause(
+                            $retrySetting->getDelayMillisecondsOnRetry()
+                            + mt_rand(0, $retrySetting->getDelayMillisecondsOnRetry() / 100) );
+                        continue;
+                    }
+                    finally
+                    {
+                        restore_error_handler();
+                    }
+
                     if( $mysqli->connect_error ) {
                         if ($mysqli->connect_errno) {
                             if ( $retrySetting->getMaxRetryCount() > 0 && $retryCount > $retrySetting->getMaxRetryCount() ) {
+//                                echo '[B]';
                                 return $mysqli;
                             }
 
@@ -87,19 +119,44 @@ class Connector
                                 $updateMessage->setStartTime($startTime);
                                 $updateMessage->setRetryCount($retryCount);
                                 $defer->update($updateMessage);
-                                if ($updateMessage->cancelOrdered())
+                                if ($updateMessage->cancelOrdered()) {
+//                                    echo '[C]';
                                     return $mysqli;
+                                }
                             }
                             yield new \Amp\Pause(
                                 $retrySetting->getDelayMillisecondsOnRetry()
                                 + mt_rand(0, $retrySetting->getDelayMillisecondsOnRetry() / 2) );
+//                            echo '[e1(' . $mysqli->connect_errno . ':' . $mysqli->connect_error . ')]';
+//                            echo '[e1(' . $mysqli->connect_errno . ')]';
                             continue;
                         } else {
+//                            echo '[D]';
                             return $mysqli;
+                        }
+                    }
+                    else
+                    {
+                        try {
+                            set_error_handler( [$this,'errorHandlerOnPing'] );
+                            $mysqli->ping();
+                        }
+                        catch( MysqliException $e )
+                        {
+//                            echo '[e22(' . $e->getCode() . ')]';
+                            yield new \Amp\Pause(
+                                $retrySetting->getDelayMillisecondsOnRetry()
+                                + mt_rand(0, $retrySetting->getDelayMillisecondsOnRetry() / 2) );
+                            continue;
+                        }
+                        finally
+                        {
+                            restore_error_handler();
                         }
                     }
                     $finish_establish_connection = true;
                 }
+//                echo '[E]';
                 return $mysqli;
             }
         );
@@ -163,12 +220,13 @@ class Connector
                         $currentTime = microtime( true );
                         if( $currentTime - $startTime > $timeoutSec )
                         {
+//                            echo '[A]';
                             return $mysqli;
                         }
                     }
 
                     assert( ($mysqli instanceof \mysqli) );
-                    @$mysqli->real_connect(
+                    $result = @$mysqli->real_connect(
                         $connectionSetting->getHost(),
                         $connectionSetting->getUser(),
                         $connectionSetting->getPassword(),
@@ -178,9 +236,11 @@ class Connector
                         $flags
                     );
 
+                    yield new \Amp\Pause(5000);
                     if( $mysqli->connect_error ) {
                         if ($mysqli->connect_errno) {
                             if ( $retrySetting->getMaxRetryCount() > 0 && $retryCount > $retrySetting->getMaxRetryCount() ) {
+//                                echo '[B]';
                                 return $mysqli;
                             }
 
@@ -190,19 +250,47 @@ class Connector
                                 $updateMessage->setStartTime($startTime);
                                 $updateMessage->setRetryCount($retryCount);
                                 $defer->update($updateMessage);
-                                if ($updateMessage->cancelOrdered())
+                                if ($updateMessage->cancelOrdered()) {
+//                                    echo '[F1]';
                                     return $mysqli;
+                                }
                             }
                             yield new \Amp\Pause(
                                 $retrySetting->getDelayMillisecondsOnRetry()
                                 + mt_rand(0, $retrySetting->getDelayMillisecondsOnRetry() / 2) );
                             continue;
                         } else {
+//                            echo '[C]';
                             return $mysqli;
                         }
                     }
+                    if( $result === FALSE )
+                    {
+                        if ( $retrySetting->getMaxRetryCount() > 0 && $retryCount > $retrySetting->getMaxRetryCount() ) {
+//                            echo '[E]';
+                            return $mysqli;
+                        }
+
+                        if( $enableUpdateMessage ) {
+                            $updateMessage = new ConnectorUpdateMessage();
+                            $updateMessage->setMysqli($mysqli);
+                            $updateMessage->setStartTime($startTime);
+                            $updateMessage->setRetryCount($retryCount);
+                            $defer->update($updateMessage);
+                            if ($updateMessage->cancelOrdered()) {
+//                                echo '[F2]';
+                                return $mysqli;
+                            }
+                        }
+                        yield new \Amp\Pause(
+                            $retrySetting->getDelayMillisecondsOnRetry()
+                            + mt_rand(0, $retrySetting->getDelayMillisecondsOnRetry() / 2) );
+                        continue;
+                    }
+//                    echo '{A}';
                     $finish_establish_connection = true;
                 }
+//                echo '[D]';
                 return $mysqli;
             }
         );

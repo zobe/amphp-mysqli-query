@@ -19,6 +19,8 @@ class Query
     // singleton...?
     protected static $singletons = [];
 
+    protected $currentSql = '';
+
     /**
      * You can get Query instance
      *
@@ -96,7 +98,15 @@ class Query
         if( is_null($queryType) )
             $queryType = QueryType::typeNormal();
 
-        $mysqli->query( $sql, MYSQLI_ASYNC );
+        try {
+            set_error_handler( [$this,'errorHandlerOnMysqliQuery'] );
+            $this->currentSql = $sql;
+            $mysqli->query($sql, MYSQLI_ASYNC);
+        }
+        finally
+        {
+            restore_error_handler();
+        }
 
         $query = new QueryInfo();
         $query->setSql( $sql );
@@ -160,17 +170,54 @@ class Query
         return $this->query( $mysqli, $sql, QueryType::typeFirstValueOnly() );
     }
 
-    public static function errorHandlerOnMysqliPoll( $errno, $errstr, $errfile, $errline )
+    public function errorHandlerOnMysqliPoll( $errno, $errstr, $errfile, $errline )
     {
-        if( $errno === 2 &&
-            strpos( $errstr, 'mysqli_poll' ) !== false &&
-            strpos( $errstr, "Couldn't fetch mysqli" ) !== false
-        )
-            throw new CouldntFetchMysqliException($errstr . ', file: ' . $errfile . ', line: ' . $errline, $errno);
+//        if( $errno === 2 &&
+//            strpos( $errstr, 'mysqli_poll' ) !== false &&
+//            strpos( $errstr, "Couldn't fetch mysqli" ) !== false
+//        )
+//            throw new CouldntFetchMysqliException(
+//                $errstr . ', file: ' . $errfile . ', line: ' . $errline . ', SQL: ' . $this->currentSql,
+//                $errno);
 
-        throw new NotCategorizedMysqliPollException(
-            $errstr . ', file: ' . $errfile . ', line: ' . $errline,
+        $currentSql = $this->currentSql;
+        $this->currentSql = '';
+        $e = new MysqliException(
+            'Error at mysqli_poll(): ' . $errstr . ', file: ' . $errfile . ', line: ' . $errline . ', SQL: ' . $currentSql,
             $errno);
+        $e->setSql( $currentSql );
+        $e->setClassName('mysqli');
+        $e->setMethodName('mysqli_poll');
+        $e->setMysqliExceptionType( MysqliExceptionClassifier::createMysqliExceptionType('mysqli_poll', $errno ) );
+        throw $e;
+    }
+
+    public function errorHandlerOnMysqliQuery( $errno, $errstr, $errfile, $errline )
+    {
+        $currentSql = $this->currentSql;
+        $this->currentSql = '';
+        $e = new MysqliException(
+            'Error at mysqli_query(): ' . $errstr . ', file: ' . $errfile . ', line: ' . $errline . ', SQL: ' . $currentSql,
+            $errno);
+        $e->setSql( $currentSql );
+        $e->setClassName('mysqli');
+        $e->setMethodName('mysqli_query');
+        $e->setMysqliExceptionType( MysqliExceptionClassifier::createMysqliExceptionType('mysqli_query', $errno ) );
+        throw $e;
+    }
+
+    public function errorHandlerOnMysqliReapAsyncQuery( $errno, $errstr, $errfile, $errline )
+    {
+        $currentSql = $this->currentSql;
+        $this->currentSql = '';
+        $e = new MysqliException(
+            'Error at mysqli_reap_async_query(): ' . $errstr . ', file: ' . $errfile . ', line: ' . $errline . ', SQL: ' . $currentSql,
+            $errno);
+        $e->setSql( $currentSql );
+        $e->setClassName('mysqli');
+        $e->setMethodName('mysqli_reap_async_query');
+        $e->setMysqliExceptionType( MysqliExceptionClassifier::createMysqliExceptionType('mysqli_reap_async_query', $errno ) );
+        throw $e;
     }
 
     protected function destroyZombieConnections()
@@ -182,26 +229,17 @@ class Query
             $links[] = $errors[] = $rejects[] = $conn;
 
             try {
-                set_error_handler( ['zobe\\AmphpMysqliQuery\\Query','errorHandlerOnMysqliPoll'] );
+                set_error_handler( [$this,'errorHandlerOnMysqliPoll'] );
+                $this->currentSql = $queryInfo->getSql();
                 $poll_result = mysqli_poll($links, $errors, $rejects, 0);
-            }
-            catch( CouldntFetchMysqliException $e )
-            {
-                unset( $this->queries[$id] );
-                $e->setSql( $queryInfo->getSql() );
-                $queryInfo->getDefer()->fail( $e );
-            }
-            catch( NotCategorizedMysqliPollException $e )
-            {
-                unset( $this->queries[$id] );
-                $e->setSql( $queryInfo->getSql() );
-                $queryInfo->getDefer()->fail( $e );
             }
             catch( \Throwable $e )
             {
                 unset( $this->queries[$id] );
-                $err = new NotCategorizedMysqliPollException(
-                    $e->getMessage(),
+                $err = new MysqliException(
+                    'The query got error (@mysqli_poll() @destroyZomieConnections()): errno: ' . $e->getCode() .
+                    ', error: '.  $e->getMessage() .
+                    ', SQL: ' . $queryInfo->getSql(),
                     $e->getCode(),
                     $e
                 );
@@ -229,7 +267,7 @@ class Query
         }
 
         try {
-            set_error_handler( ['zobe\\AmphpMysqliQuery\\Query','errorHandlerOnMysqliPoll'] );
+            set_error_handler( [$this,'errorHandlerOnMysqliPoll'] );
             $poll_result = mysqli_poll($links, $errors, $rejects, 0);
         }
         catch( \Throwable $e )
@@ -246,15 +284,95 @@ class Query
             return;
         }
 
-//        $processedIds = [];
+        if( count($errors) > 0 )
+        {
+            foreach( $errors as $error )
+            {
+                $id = spl_object_hash($error);
+                $query = $this->queries[$id];
+                unset( $this->queries[$id] );
+                if( $error instanceof \mysqli && $error->error )
+                {
+                    $err = new MysqliException(
+                        'The query got error: errno: ' . $error->error .
+                        ', error: ' . $error->error .
+                        ', SQL: ' . $query->getSql(),
+                        $error->errno );
+                    $err->setSql($query->getSql());
+                    $query->getDefer()->fail($err);
+                }
+                else {
+                    $err = new MysqliException('The query got error (@mysqli_poll()). SQL: ' . $query->getSql(), 50001);
+                    $err->setSql($query->getSql());
+                    $query->getDefer()->fail($err);
+                }
+            }
+        }
+        if( count($rejects) > 0 )
+        {
+            foreach( $rejects as $rej )
+            {
+                $id = spl_object_hash($rej);
+                $query = $this->queries[$id];
+                unset( $this->queries[$id] );
+                if( $rej instanceof \mysqli && $rej->error )
+                {
+                    $err = new MysqliException(
+                        'The query has been rejected (@mysqli_poll()): errno: ' . $rej->error .
+                        ', error: ' . $rej->error .
+                        ', SQL: ' . $query->getSql(),
+                        $rej->errno );
+                    $err->setSql($query->getSql());
+                    $query->getDefer()->fail($err);
+                }
+                else {
+                    $err = new MysqliException('The query has been rejected (@mysqli_poll()). SQL: ' . $query->getSql(), 50002);
+                    $err->setSql($query->getSql());
+                    $query->getDefer()->fail($err);
+                }
+            }
+        }
         foreach( $links as $link )
         {
             $id = spl_object_hash($link);
-            $query = $this->queries[$id];
-//            $processedIds[] = $id;
-            unset( $this->queries[$id] );
+            if( array_key_exists( $id, $this->queries ) ) {
+                $query = $this->queries[$id];
+                unset($this->queries[$id]);
+            }
+            else
+                continue;
 
-            if( $result = mysqli_reap_async_query( $link ) )
+            $err = null;
+
+            $result = null;
+            try {
+                $this->currentSql = $query->getSql();
+                set_error_handler( [$this,'errorHandlerOnMysqliReapAsyncQuery'] );
+                $result = mysqli_reap_async_query($link);
+            }
+            catch( \Throwable $e )
+            {
+                $err = $e;
+            }
+            finally
+            {
+                restore_error_handler();
+            }
+
+            if( !is_null($err) )
+            {
+                if( $err instanceof MysqliException ) {
+                    $err->setSql( $query->getSql() );
+                    $query->getDefer()->fail($err);
+                }
+                else
+                {
+                    $err = new MysqliException( 'NotCategorizedException at mysqli_reap_async_query() call in Query::tick(), errcode: ' . $err->getCode(), $err->getCode(), $err );
+                    $err->setSql( $query->getSql() );
+                    $query->getDefer()->fail($err);
+                }
+            }
+            else if( $result )
             {
                 if( $query->getQueryType()->isExecOnly() )
                 {
@@ -322,6 +440,11 @@ class Query
             {
                 $e = new MysqliException(mysqli_error($link),mysqli_errno($link));
                 $e->setSql( $query->getSql() );
+                $e->setClassName('mysqli');
+                $e->setMethodName('mysqli_reap_async_query');
+                $e->setMysqliExceptionType(
+                    MysqliExceptionClassifier::createMysqliExceptionType('mysqli_reap_async_query',mysqli_errno($link) )
+                );
                 $query->getDefer()->fail($e);
             }
         }
