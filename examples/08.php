@@ -7,7 +7,7 @@ require '../vendor/autoload.php';
 require_once '../src/Connector.php';
 require_once '../src/RetrySettings.php';
 require_once '../src/ConnectionSettings.php';
-require_once '../src/ConnectorUpdateMessage.php';
+require_once '../src/ConnectorTaskInfo.php';
 require_once '../src/Connector.php';
 require_once './config.php';
 
@@ -49,7 +49,7 @@ Amp\run(
         // open
         $p = $ctr->connectWithAutomaticRetry();
         $p = $p->watch(
-            function( \zobe\AmphpMysqliQuery\ConnectorUpdateMessage $msg )
+            function( \zobe\AmphpMysqliQuery\ConnectorTaskInfo $msg )
             {
                 static $count = 0;
                 $maxCount = 10;

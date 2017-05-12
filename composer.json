@@ -16,7 +16,7 @@
     ],
     "require": {
         "amphp/amp": "^1.2",
-        "zobe/taskinfo": "^0.0.1"
+        "zobe/taskinfo": "^0.0.2"
     },
     "autoload": {
         "psr-4": {

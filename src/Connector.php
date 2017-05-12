@@ -6,7 +6,7 @@ use Amp\Pause;
 
 require __DIR__ . './ConnectionSettings.php';
 require __DIR__ . './RetrySettings.php';
-require __DIR__ . './ConnectorUpdateMessage.php';
+require __DIR__ . './ConnectorTaskInfo.php';
 
 /**
  * This represents connection factory methods with asynchronous retry mechanism.
@@ -114,7 +114,7 @@ class Connector
                             }
 
                             if( $enableUpdateMessage ) {
-                                $updateMessage = new ConnectorUpdateMessage();
+                                $updateMessage = new ConnectorTaskInfo();
                                 $updateMessage->setMysqli($mysqli);
                                 $updateMessage->setStartTime($startTime);
                                 $updateMessage->setRetryCount($retryCount);
@@ -245,7 +245,7 @@ class Connector
                             }
 
                             if( $enableUpdateMessage ) {
-                                $updateMessage = new ConnectorUpdateMessage();
+                                $updateMessage = new ConnectorTaskInfo();
                                 $updateMessage->setMysqli($mysqli);
                                 $updateMessage->setStartTime($startTime);
                                 $updateMessage->setRetryCount($retryCount);
@@ -272,7 +272,7 @@ class Connector
                         }
 
                         if( $enableUpdateMessage ) {
-                            $updateMessage = new ConnectorUpdateMessage();
+                            $updateMessage = new ConnectorTaskInfo();
                             $updateMessage->setMysqli($mysqli);
                             $updateMessage->setStartTime($startTime);
                             $updateMessage->setRetryCount($retryCount);
