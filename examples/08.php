@@ -73,7 +73,17 @@ Amp\run(
         $c = \mysqli_init();
         $c->options( MYSQLI_OPT_CONNECT_TIMEOUT, 30 );
         // $c->options() ...
-        yield $ctr->realConnectWithAutomaticRetry( $c );
+        yield $ctr->realConnectWithAutomaticRetry( $c, 0, null, null,
+            function( \zobe\AmphpMysqliQuery\ConnectorTaskInfo $info )
+            {
+                var_dump( $info );
+                static $count = 0;
+                $maxCount = 10;
+                $count++;
+
+                if( $info->getRetryCount() > $maxCount )
+                    $info->orderCancel();
+            });
         // close
         assert( ($c instanceof \mysqli) );
         if( !$c->connect_error )

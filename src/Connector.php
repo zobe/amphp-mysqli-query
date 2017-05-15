@@ -210,10 +210,10 @@ class Connector
      * @param int $flags same as flags parameter of function \mysqli_real_connect
      * @param ConnectionSettings|null $connectionSetting if null, the value of $this->setDefaultConnectionSetting() is used.
      * @param RetrySettings|null $retrySetting if null, the value of $this->setDefaultRetrySetting() is used.
-     * @param bool $enableUpdateMessage set true to enable update message
+     * @param callable $update A callback to invoke when data updates are available. The callback will be called with 1 ConnectorTaskInfo or the successor. Callback example: function(ConnectorTaskInfo $inf){;}
      * @return \Amp\Promise
      */
-    public function realConnectWithAutomaticRetry(\mysqli $mysqli, int $flags = 0, ConnectionSettings $connectionSetting = null, RetrySettings $retrySetting = null, bool $enableUpdateMessage = false )
+    public function realConnectWithAutomaticRetry(\mysqli $mysqli, int $flags = 0, ConnectionSettings $connectionSetting = null, RetrySettings $retrySetting = null, callable $update = null )
     {
         if( is_null($connectionSetting) )
             $connectionSetting = $this->defaultConnectionSetting;
@@ -223,7 +223,7 @@ class Connector
         $defer = new \Amp\Deferred();
 
         $promise = \Amp\resolve(
-            function() use ( $defer, $mysqli, $flags, $connectionSetting, $retrySetting, $enableUpdateMessage )
+            function() use ( $defer, $mysqli, $flags, $connectionSetting, $retrySetting, $update )
             {
                 $finish_establish_connection = false;
                 $retryCount = -1;
@@ -238,14 +238,16 @@ class Connector
                         $currentTime = microtime( true );
                         if( $currentTime - $startTime > $timeoutSec )
                         {
-//                            echo '[A]';
                             return $mysqli;
                         }
                     }
 
                     assert( ($mysqli instanceof \mysqli) );
+                    $host = $connectionSetting->getHost();
+                    if( !(strpos( $host, 'p:' ) === 0) )
+                        $host = 'p:' . $host;
                     $result = @$mysqli->real_connect(
-                        $connectionSetting->getHost(),
+                        $host,
                         $connectionSetting->getUser(),
                         $connectionSetting->getPassword(),
                         $connectionSetting->getDatabase(),
@@ -254,67 +256,67 @@ class Connector
                         $flags
                     );
 
-                    yield new \Amp\Pause(5000);
-                    if( $mysqli->connect_error ) {
-                        if ($mysqli->connect_errno) {
-                            if ( $retrySetting->getMaxRetryCount() > 0 && $retryCount > $retrySetting->getMaxRetryCount() ) {
-//                                echo '[B]';
-                                return $mysqli;
-                            }
-
-                            if( $enableUpdateMessage ) {
-                                $updateMessage = new ConnectorTaskInfo();
-                                $updateMessage->setMysqli($mysqli);
-                                $updateMessage->setStartTime($startTime);
-                                $updateMessage->setRetryCount_ConnectorTaskInfo($retryCount);
-                                $defer->update($updateMessage);
-                                if ($updateMessage->cancelOrdered()) {
-//                                    echo '[F1]';
-                                    return $mysqli;
-                                }
-                            }
-                            yield new \Amp\Pause(
-                                $retrySetting->getDelayMillisecondsOnRetry()
-                                + mt_rand(0, $retrySetting->getDelayMillisecondsOnRetry() / 2) );
-                            continue;
-                        } else {
-//                            echo '[C]';
-                            return $mysqli;
-                        }
+                    try {
+                        set_error_handler( [$this,'errorHandlerOnPing'] );
+                        $mysqli->ping();
                     }
-                    if( $result === FALSE )
+                    catch( MysqliException $e )
                     {
-                        if ( $retrySetting->getMaxRetryCount() > 0 && $retryCount > $retrySetting->getMaxRetryCount() ) {
-//                            echo '[E]';
-                            return $mysqli;
-                        }
-
-                        if( $enableUpdateMessage ) {
-                            $updateMessage = new ConnectorTaskInfo();
-                            $updateMessage->setMysqli($mysqli);
-                            $updateMessage->setStartTime($startTime);
-                            $updateMessage->setRetryCount_ConnectorTaskInfo($retryCount);
-                            $defer->update($updateMessage);
-                            if ($updateMessage->cancelOrdered()) {
-//                                echo '[F2]';
+                        if( is_callable($update) ) {
+                            $updateMessage = ConnectorTaskInfoFactory::createExceptionSuppressed( $mysqli, $startTime, $retryCount, $e,
+                                'Connector::realConnectWithAutomaticRetry(): Suppressing an exception',
+                                'Code: ' . $e->getCode() . ', Msg: ' . $e->getMessage()
+                            );
+                            call_user_func( $update, $updateMessage );
+                            if ($updateMessage->isCancelOrdered_CancelableTaskInfoTrait()) {
                                 return $mysqli;
                             }
                         }
                         yield new \Amp\Pause(
                             $retrySetting->getDelayMillisecondsOnRetry()
-                            + mt_rand(0, $retrySetting->getDelayMillisecondsOnRetry() / 2) );
+                            + mt_rand(0, $retrySetting->getDelayMillisecondsOnRetry() / 100) );
                         continue;
                     }
-//                    echo '{A}';
+                    finally
+                    {
+                        restore_error_handler();
+                    }
+
+                    if( $result === FALSE || $mysqli->connect_error ) {
+                        if ( $retrySetting->getMaxRetryCount() > 0 && $retryCount > $retrySetting->getMaxRetryCount() ) {
+                            return $mysqli;
+                        }
+
+                        if( is_callable($update) ) {
+                            $err = new MysqliException('connect_error has been discovered after successful mysqli ctor: ' . $mysqli->connect_error, $mysqli->connect_errno);
+                            $updateMessage = ConnectorTaskInfoFactory::createExceptionSuppressed( $mysqli, $startTime, $retryCount, $err,
+                                'Connector::realConnectWithAutomaticRetry(): Suppressing an exception',
+                                'Code: ' . $err->getCode() . ', Msg: ' . $err->getMessage()
+                            );
+                            call_user_func( $update, $updateMessage );
+                            if ($updateMessage->isCancelOrdered_CancelableTaskInfoTrait()) {
+                                return $mysqli;
+                            }
+                        }
+                        yield new \Amp\Pause(
+                            $retrySetting->getDelayMillisecondsOnRetry()
+                            + mt_rand(0, $retrySetting->getDelayMillisecondsOnRetry() / 100) );
+                        continue;
+                    }
                     $finish_establish_connection = true;
                 }
-//                echo '[D]';
+                if( is_callable($update) ) {
+                    $updateMessage = ConnectorTaskInfoFactory::create( $mysqli, $startTime, $retryCount,
+                        'Connector::realConnectWithAutomaticRetry(): Successfully completed' );
+                    $updateMessage->setEndTimeLife_TimeTaskInfoTrait();
+                    call_user_func( $update, $updateMessage );
+                }
                 return $mysqli;
             }
         );
 
         $promise->when(
-            function( \Exception $error = null, $result = null )
+            function( $error = null, $result = null )
             use ($defer)
             {
                 if( $error ) {
