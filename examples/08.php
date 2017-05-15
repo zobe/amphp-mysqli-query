@@ -47,18 +47,17 @@ Amp\run(
         // sample 2 - receiving update message and canceling operation
 
         // open
-        $p = $ctr->connectWithAutomaticRetry();
-        $p = $p->watch(
-            function( \zobe\AmphpMysqliQuery\ConnectorTaskInfo $msg )
+        $p = $ctr->connectWithAutomaticRetry( null, null,
+            function( \zobe\AmphpMysqliQuery\ConnectorTaskInfo $info )
             {
+                var_dump( $info );
                 static $count = 0;
                 $maxCount = 10;
                 $count++;
 
-                if( $msg->getRetryCount() > $maxCount )
-                    $msg->orderCancel();
-            }
-        );
+                if( $info->getRetryCount() > $maxCount )
+                    $info->orderCancel();
+            });
         $c = yield $p;
 
         // close
