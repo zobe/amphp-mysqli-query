@@ -266,8 +266,8 @@ class Connector
                             $updateMessage = ConnectorTaskInfoFactory::createExceptionSuppressed( $mysqli, $startTime, $retryCount, $e,
                                 'Connector::realConnectWithAutomaticRetry(): Suppressing an exception',
                                 'Code: ' . $e->getCode() . ', Msg: ' . $e->getMessage()
-                            );
-                            call_user_func( $update, $updateMessage );
+                            );                            call_user_func( $update, $updateMessage );
+
                             if ($updateMessage->isCancelOrdered_CancelableTaskInfoTrait()) {
                                 return $mysqli;
                             }

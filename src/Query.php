@@ -144,6 +144,8 @@ class Query
      * Yield me to execute sql asynchronously. same as query(,,QueryType::typeFirstRowOnly())
      * The result will be discarded without the first row.
      *
+     * Promise success value or yield return value: array|null An array of the first row values, or null if no row has been returned.
+     *
      * unlike in the case of query(,,false), you are free from necessity to dispose mysqli_result.
      *
      * @param \mysqli $mysqli
@@ -158,6 +160,8 @@ class Query
     /**
      * Yield me to execute sql asynchronously. same as query(,,QueryType::typeFirstValueOnly())
      * The result will be discarded without the first value of the first row.
+     *
+     * Promise success value or yield return value: mixed|null The first value of the first row, or null if no row has been returned.
      *
      * unlike in the case of query(,,false), you are free from necessity to dispose mysqli_result.
      *
