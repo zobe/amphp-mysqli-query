@@ -4,9 +4,9 @@ namespace zobe\AmphpMysqliQuery;
 
 use Amp\Pause;
 
-require __DIR__ . './ConnectionSettings.php';
-require __DIR__ . './RetrySettings.php';
-require __DIR__ . './ConnectorTaskInfo.php';
+require __DIR__ . '/ConnectionSettings.php';
+require __DIR__ . '/RetrySettings.php';
+require __DIR__ . '/ConnectorTaskInfo.php';
 
 /**
  * This represents connection factory methods with asynchronous retry mechanism.
